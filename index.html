@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MasterDC – Přehled odpracovanosti v5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --c-blue:#0A6DFE; --c-green:#10b981; --c-red:#ef4444;
+  --c-orange:#f59e0b; --c-yellow:#eab308;
+  --c-header:#18181b; --c-header-border:#2d2d30;
+  --c-bg:#f0f2f7; --c-white:#ffffff;
+  --c-text:#111827; --c-muted:#6b7280; --c-border:#e5e7eb;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.08); --shadow-md:0 4px 12px rgba(0,0,0,.08);
+  --radius:10px;
+}
+body{font-family:'Montserrat',sans-serif;background:var(--c-bg);color:var(--c-text);font-size:13px;line-height:1.5}
+a{color:inherit;text-decoration:none} button{font-family:inherit}
+
+/* ── UPLOAD ─────────────────────────────────────────────────── */
+#uploadScreen{display:none;flex-direction:column;min-height:100vh}
+#uploadScreen.visible{display:flex}
+.upload-header{background:var(--c-header);height:56px;display:flex;align-items:center;padding:0 32px;gap:16px;flex-shrink:0}
+.upload-header-logo{height:28px;object-fit:contain}
+.upload-header-title{color:#a1a1aa;font-size:13px;font-weight:500;border-left:1px solid var(--c-header-border);padding-left:16px}
+.upload-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;gap:32px}
+.upload-hero{text-align:center}
+.upload-hero h1{font-size:26px;font-weight:800;margin-bottom:8px}
+.upload-hero p{font-size:13px;color:var(--c-muted);max-width:520px;margin:0 auto}
+.upload-card{width:380px;background:var(--c-white);border-radius:16px;box-shadow:var(--shadow-md);padding:32px 28px;border-top:3px solid var(--c-green);transition:.2s;cursor:pointer}
+.upload-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.1)}
+.upload-card.drag-over{outline:2px dashed var(--c-green);outline-offset:-2px}
+.upload-card input[type=file]{display:none}
+.upload-card-icon{width:56px;height:56px;border-radius:50%;background:#f0fdf4;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.upload-card-title{font-size:17px;font-weight:800;text-align:center;margin-bottom:6px}
+.upload-card-desc{font-size:11px;color:var(--c-muted);text-align:center;line-height:1.6;margin-bottom:20px}
+.upload-card-desc code{background:#f3f4f6;padding:1px 5px;border-radius:4px;font-family:monospace;font-size:10px}
+.btn-upload{display:block;width:100%;padding:10px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:.15s;font-family:inherit;text-align:center;background:var(--c-green);color:#fff}
+.btn-upload:hover{background:#059669}
+.upload-status{margin-top:10px;text-align:center;font-size:11px;font-weight:600;color:var(--c-muted)}
+.upload-status.loaded-rt{color:var(--c-green)}
+.upload-card.loaded{background:#f0fdf4}
+.upload-meta{margin-top:8px;text-align:center;font-size:10px;color:#9ca3af;line-height:1.6}
+.btn-show{background:var(--c-green);color:#fff;border:none;border-radius:10px;padding:14px 48px;font-size:15px;font-weight:700;cursor:pointer;transition:.2s;display:flex;align-items:center;gap:8px}
+.btn-show:hover{background:#059669;transform:translateY(-1px)}
+.btn-show:disabled{background:#d1d5db;color:#9ca3af;cursor:not-allowed;transform:none}
+.btn-show-hint{font-size:11px;color:var(--c-muted);text-align:center;max-width:480px}
+
+/* ── HEADER ─────────────────────────────────────────────────── */
+#dashboard{display:none}
+header{background:var(--c-header);height:56px;display:flex;align-items:center;padding:0 24px;gap:0;position:sticky;top:0;z-index:100}
+.hdr-logo{height:28px;object-fit:contain;flex-shrink:0}
+.hdr-sep{width:1px;height:24px;background:var(--c-header-border);margin:0 16px;flex-shrink:0}
+.hdr-title{color:#a1a1aa;font-size:12px;font-weight:600;flex-shrink:0}
+.hdr-chips{display:flex;gap:8px;flex:1;margin-left:20px;flex-wrap:wrap;align-items:center}
+.hdr-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid}
+.hdr-chip-rt{color:#34d399;border-color:#047857}
+.btn-hdr{background:transparent;border:1px solid #3f3f46;color:#a1a1aa;border-radius:7px;padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.btn-hdr:hover{border-color:#71717a;color:#e4e4e7}
+
+/* ── FILTER BAR ─────────────────────────────────────────────── */
+#filterBar{background:var(--c-white);border-bottom:1px solid var(--c-border);padding:0 24px;height:48px;display:flex;align-items:center;gap:16px;position:sticky;top:56px;z-index:90}
+.fg{display:flex;align-items:center;gap:6px}
+.fg label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--c-muted);white-space:nowrap}
+.fg select{border:1px solid var(--c-border);border-radius:6px;padding:4px 8px;font-size:12px;font-weight:500;font-family:inherit;background:var(--c-white);cursor:pointer;min-width:80px;padding-right:24px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 6px center}
+.fg select:focus{outline:none;border-color:var(--c-blue)}
+.fg-sep{width:1px;height:24px;background:var(--c-border);flex-shrink:0}
+.btn-reset-filter{background:none;border:1px solid var(--c-border);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;color:var(--c-muted);transition:.15s;display:flex;align-items:center;gap:4px}
+.btn-reset-filter:hover{border-color:var(--c-blue);color:var(--c-blue)}
+.filter-counts{margin-left:auto;font-size:11px;color:var(--c-muted);white-space:nowrap}
+.filter-counts .rt-cnt{color:var(--c-green);font-weight:700}
+
+/* ── CONTENT ────────────────────────────────────────────────── */
+.main-content{padding:20px 24px 48px}
+
+/* ── KPI CARDS ──────────────────────────────────────────────── */
+.kpi-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:20px}
+.kpi-card{background:var(--c-white);border-radius:var(--radius);padding:16px 20px;flex:1;min-width:150px;box-shadow:var(--shadow-sm);border-left:3px solid transparent}
+.kpi-card.kpi-rt{border-left-color:var(--c-green)} .kpi-card.kpi-warn{border-left-color:var(--c-orange)}
+.kpi-card.kpi-danger{border-left-color:var(--c-red)} .kpi-card.kpi-neutral{border-left-color:#e5e7eb}
+.kpi-card.kpi-ok{border-left-color:var(--c-green)}
+.kpi-label{font-size:10px;font-weight:700;color:var(--c-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.kpi-value{font-size:24px;font-weight:800;color:var(--c-text);line-height:1.1}
+.kpi-sub{font-size:10px;color:#9ca3af;margin-top:3px;font-weight:500}
+
+/* ── CHARTS ─────────────────────────────────────────────────── */
+.charts-row{display:flex;gap:14px;margin-bottom:20px;flex-wrap:wrap}
+.chart-card{background:var(--c-white);border-radius:var(--radius);padding:18px 20px;flex:1;min-width:300px;box-shadow:var(--shadow-sm)}
+.chart-card-title{font-size:12px;font-weight:700;color:var(--c-text);margin-bottom:14px;display:flex;align-items:center;gap:6px}
+.chart-scroll{overflow-y:auto;overflow-x:hidden;max-height:320px}
+.chart-scroll canvas{display:block}
+
+/* ── HEATMAP ────────────────────────────────────────────────── */
+.heatmap-card{background:var(--c-white);border-radius:var(--radius);box-shadow:var(--shadow-sm);margin-bottom:20px;overflow:hidden}
+.heatmap-head{display:flex;align-items:center;justify-content:space-between;padding:12px 20px 10px;border-bottom:1px solid var(--c-border)}
+.heatmap-head-title{font-size:12px;font-weight:700}
+.heatmap-wrap{padding:12px 16px 16px}
+.hmap-tbl{border-collapse:collapse;font-size:10px;width:100%;table-layout:fixed}
+.hmap-tbl th{padding:3px 2px;font-weight:700;color:var(--c-muted);text-align:center;white-space:nowrap}
+.hmap-tbl td{padding:2px 2px;text-align:center}
+.hmap-tbl .hmap-label-col{width:88px}
+.hmap-cell{height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;cursor:default;width:100%}
+.hmap-0{background:#f3f4f6;color:#d1d5db}
+.hmap-1{background:#dbeafe;color:#1e40af}
+.hmap-2{background:#93c5fd;color:#1e3a8a}
+.hmap-3{background:#3b82f6;color:#fff}
+.hmap-4{background:#1d4ed8;color:#fff}
+.hmap-5{background:#1e3a8a;color:#fff}
+.hmap-label{font-size:10px;font-weight:700;color:var(--c-text);padding-right:8px;text-align:right;white-space:nowrap}
+.hmap-weekend{background:#e5e7eb;color:#9ca3af}
+.hmap-weekend-future{background:#f3f4f6;color:#d1d5db}
+.hmap-future{background:#f9fafb;color:#e5e7eb}
+.hmap-th-weekend{background:#e5e7eb!important;color:#9ca3af}
+.hmap-th-future{color:#d1d5db!important}
+
+/* ── TABLES ─────────────────────────────────────────────────── */
+.table-card{background:var(--c-white);border-radius:var(--radius);box-shadow:var(--shadow-sm);margin-bottom:20px;overflow:hidden}
+.table-head{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;border-bottom:1px solid var(--c-border);gap:10px}
+.table-head-title{font-size:13px;font-weight:700}
+.table-head-right{display:flex;align-items:center;gap:10px}
+.tbl-count{font-size:11px;color:var(--c-muted);font-weight:500}
+.search-input{border:1px solid var(--c-border);border-radius:6px;padding:5px 10px 5px 30px;font-size:12px;font-family:inherit;width:200px;background:var(--c-white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 9px center}
+.search-input:focus{outline:none;border-color:var(--c-blue)}
+.btn-export{background:none;border:1px solid var(--c-border);border-radius:6px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;color:var(--c-muted);display:flex;align-items:center;gap:4px;transition:.15s}
+.btn-export:hover{border-color:var(--c-blue);color:var(--c-blue)}
+.tbl-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl thead th{background:#f9fafb;padding:8px 12px;text-align:left;font-weight:700;font-size:10px;color:var(--c-muted);text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid var(--c-border);cursor:pointer;user-select:none;white-space:nowrap}
+.tbl thead th:hover,.tbl thead th.sort-active{color:var(--c-blue)}
+.sort-ind{margin-left:3px;font-size:9px;opacity:.5}
+.tbl thead th.sort-active .sort-ind{opacity:1}
+.tbl tbody td{padding:9px 12px;border-bottom:1px solid #f3f4f6;vertical-align:middle}
+.tbl tbody tr.main-row{cursor:pointer;transition:background .1s}
+.tbl tbody tr.main-row:hover{background:#f9fafb!important}
+.tbl tbody tr.main-row:hover td{background:transparent!important}
+.tbl tbody tr.main-row.expanded{background:#eff6ff!important}
+.tbl tbody tr.main-row.expanded td{background:transparent!important}
+.row-arrow{display:inline-flex;align-items:center;width:18px;height:18px;border-radius:4px;transition:.15s;color:var(--c-muted);flex-shrink:0;font-size:10px}
+.expanded .row-arrow{color:var(--c-blue);transform:rotate(90deg)}
+.tbl tbody tr.expand-row td{padding:0;background:#f8fafc;border-bottom:2px solid var(--c-border)}
+.expand-inner{padding:0 16px 16px 40px;border-left:3px solid var(--c-blue)}
+.expand-inner .tbl thead th{background:#f1f5f9;cursor:default;font-size:9px}
+.expand-inner .tbl tbody td{padding:7px 10px;border-bottom:1px solid #eef0f3}
+.expand-inner .tbl tbody tr:last-child td{border-bottom:none}
+
+/* ── CHIPS / BADGES ─────────────────────────────────────────── */
+.badge{padding:2px 7px;border-radius:8px;font-size:10px;font-weight:700;white-space:nowrap}
+.badge-ok{background:#d1fae5;color:#065f46} .badge-warn{background:#fef3c7;color:#92400e} .badge-over{background:#fee2e2;color:#991b1b}
+
+/* ── PROGRESS ───────────────────────────────────────────────── */
+.util-bar{display:flex;align-items:center;gap:6px}
+.util-fill{height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;width:60px}
+.util-inner{height:100%;border-radius:3px}
+.util-pct{font-size:11px;font-weight:700;min-width:34px}
+.admin-filter-btns{display:flex;gap:6px;align-items:center}
+.admin-filter-btn{border:1px solid var(--c-border);background:var(--c-white);border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;color:var(--c-muted);font-family:inherit;transition:.15s}
+.admin-filter-btn.active{background:var(--c-blue);color:#fff;border-color:var(--c-blue)}
+.admin-filter-btn:hover:not(.active){border-color:var(--c-blue);color:var(--c-blue)}
+
+/* ── MISC ───────────────────────────────────────────────────── */
+.client-link{border-bottom:1px dotted currentColor;cursor:pointer;transition:.1s}
+.client-link:hover{color:var(--c-blue);border-bottom-style:solid}
+.h-rt{color:var(--c-green);font-weight:600} .h-zero{color:#9ca3af}
+.sparkline-cell svg{display:block}
+@media(max-width:768px){.charts-row{flex-direction:column}.kpi-card{min-width:140px}#filterBar{height:auto;padding:8px 16px;flex-wrap:wrap;gap:8px}}
+</style>
+</head>
+<body>
+
+<!-- ── UPLOAD ─────────────────────────────────────────────── -->
+<div id="uploadScreen" class="visible">
+  <div class="upload-header">
+    <img class="upload-header-logo" src="https://www.master.cz/mydata/myuploads/2024/07/master-logo.svg"
+         onerror="this.outerHTML='<span style=\'color:#fff;font-size:16px;font-weight:800\'>MasterDC</span>'" alt="MasterDC">
+    <div class="upload-header-title">Přehled odpracovanosti v5</div>
+  </div>
+  <div class="upload-body">
+    <div class="upload-hero">
+      <h1>Přehled odpracovanosti</h1>
+      <p>Nahrajte export z Request Trackeru pro zobrazení odpracovanosti administrátorů.</p>
+    </div>
+    <div class="upload-card" id="dropRT"
+         ondragover="onDragOver(event,'dropRT')" ondragleave="onDragLeave('dropRT')" ondrop="onDrop(event)">
+      <input type="file" id="fileRT" accept=".csv" onchange="loadFile(this.files[0])">
+      <div class="upload-card-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.8"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+      </div>
+      <div class="upload-card-title">Export z RT</div>
+      <div class="upload-card-desc">Export z ticketovacího systému Request Tracker<br><code>RT_supportWork*.csv</code></div>
+      <button class="btn-upload" onclick="document.getElementById('fileRT').click()">↑ Vybrat soubor z počítače</button>
+      <div class="upload-status" id="rtFileName">Soubor nepřiložen</div>
+      <div class="upload-meta">Kódování UTF-8 / Windows-1250 (auto) · Oddělovač středník (auto)</div>
+    </div>
+    <button class="btn-show" id="btnShow" disabled onclick="showDashboard()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Zobrazit dashboard
+    </button>
+    <div class="btn-show-hint">Vše se zpracovává lokálně ve vašem prohlížeči.</div>
+  </div>
+</div>
+
+<!-- ── DASHBOARD ──────────────────────────────────────────── -->
+<div id="dashboard">
+  <header>
+    <img class="hdr-logo" src="https://www.master.cz/mydata/myuploads/2024/07/master-logo.svg"
+         onerror="this.outerHTML='<span style=\'color:#fff;font-size:15px;font-weight:800\'>MasterDC</span>'" alt="MasterDC">
+    <div class="hdr-sep"></div>
+    <div class="hdr-title">Přehled odpracovanosti</div>
+    <div class="hdr-chips" id="headerChips"></div>
+    <button class="btn-hdr" onclick="backToUpload()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Nahrát soubor
+    </button>
+  </header>
+
+  <div id="filterBar">
+    <div class="fg">
+      <label>Měsíc</label>
+      <select id="fMonth" onchange="applyFilters()"></select>
+    </div>
+    <div class="fg">
+      <label>Rok</label>
+      <select id="fYear" onchange="applyFilters()"></select>
+    </div>
+    <div class="fg" style="position:relative">
+      <label>Administrátoři</label>
+      <div id="adminDropdownBtn" onclick="toggleAdminDropdown()" style="border:1px solid var(--c-border);border-radius:6px;padding:4px 28px 4px 8px;font-size:12px;font-weight:500;background:var(--c-white);cursor:pointer;min-width:160px;max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;user-select:none">
+        Všichni
+        <span style="position:absolute;right:7px;top:50%;transform:translateY(-50%);color:#6b7280;font-size:10px">▾</span>
+      </div>
+      <div id="adminDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:200;background:var(--c-white);border:1px solid var(--c-border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:200px;max-height:280px;overflow-y:auto;padding:6px 0">
+        <label style="display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:600;border-bottom:1px solid var(--c-border);margin-bottom:4px">
+          <input type="checkbox" id="fAdminAll" checked onchange="onAdminAllChange(this)"> Všichni
+        </label>
+        <div id="adminCheckList"></div>
+      </div>
+    </div>
+    <button class="btn-reset-filter" onclick="resetFilters()">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+      Reset
+    </button>
+    <div class="fg-sep"></div>
+    <div class="filter-counts" id="filterCount"></div>
+    <div id="lastRtDate" style="font-size:10px;color:var(--c-muted);white-space:nowrap;display:none">
+      <span style="font-weight:700;color:var(--c-green)">●</span> RT data do: <strong id="lastRtDateVal" style="color:var(--c-text)"></strong>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="kpi-row" id="kpiAdmins"></div>
+    <div class="charts-row">
+      <div class="chart-card" style="flex:1.2">
+        <div class="chart-card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          RT hodiny dle administrátora
+        </div>
+        <div class="chart-scroll" id="adminBarScroll"><canvas id="chartAdminBar"></canvas></div>
+      </div>
+      <div class="chart-card" style="flex:1">
+        <div class="chart-card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          Průběh odpracovanosti v čase
+        </div>
+        <div style="height:300px;position:relative"><canvas id="chartTimeline"></canvas></div>
+      </div>
+    </div>
+    <div class="heatmap-card" id="heatmapCard">
+      <div class="heatmap-head">
+        <div class="heatmap-head-title">Heatmapa vytížení — admin × den</div>
+        <div style="display:flex;gap:6px;align-items:center;font-size:10px;color:var(--c-muted)">
+          <span class="hmap-cell hmap-0" style="width:14px;height:10px;border-radius:2px"></span>0h
+          <span class="hmap-cell hmap-1" style="width:14px;height:10px;border-radius:2px"></span>&lt;2h
+          <span class="hmap-cell hmap-2" style="width:14px;height:10px;border-radius:2px"></span>&lt;5h
+          <span class="hmap-cell hmap-3" style="width:14px;height:10px;border-radius:2px"></span>&lt;8h
+          <span class="hmap-cell hmap-4" style="width:14px;height:10px;border-radius:2px"></span>&lt;12h
+          <span class="hmap-cell hmap-5" style="width:14px;height:10px;border-radius:2px"></span>12h+
+          <span style="margin-left:6px;border-left:1px solid var(--c-border);padding-left:6px"></span>
+          <span class="hmap-cell hmap-weekend" style="width:14px;height:10px;border-radius:2px"></span>víkend/svátek
+          <span class="hmap-cell hmap-future" style="width:14px;height:10px;border-radius:2px;border:1px dashed #e5e7eb"></span>budoucí den
+        </div>
+      </div>
+      <div class="heatmap-wrap" id="heatmapBody"></div>
+    </div>
+    <div class="table-card">
+      <div class="table-head">
+        <div class="table-head-title">Detail dle administrátora</div>
+        <div class="table-head-right">
+          <div class="admin-filter-btns">
+            <button class="admin-filter-btn active" id="afAll" onclick="setAdminFilter('all')">Všichni</button>
+            <button class="admin-filter-btn" id="afBelow" onclick="setAdminFilter('below')">Pod cílem (&lt;70&nbsp;%)</button>
+            <button class="admin-filter-btn" id="afCritical" onclick="setAdminFilter('critical')">Kritičtí (&lt;10&nbsp;%)</button>
+          </div>
+          <input class="search-input" id="searchAdmin" placeholder="Hledat admina…" oninput="renderAdminTable()">
+          <span class="tbl-count" id="tblAdminCount"></span>
+          <button class="btn-export" onclick="exportAdminCSV()">↓ Export</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl" id="tblAdmin">
+          <thead><tr>
+            <th onclick="sortTable('admin','login')">Administrátor <span class="sort-ind">↕</span></th>
+            <th onclick="sortTable('admin','rtH')">RT hodin <span class="sort-ind">↕</span></th>
+            <th onclick="sortTable('admin','util')">Utilizace <span class="sort-ind">↕</span></th>
+            <th onclick="sortTable('admin','comments')" title="Počet interních komentářů v RT">Komentář <span class="sort-ind">↕</span></th>
+            <th onclick="sortTable('admin','corresponds')" title="Počet zpráv zákazníkovi v RT">Korespondence <span class="sort-ind">↕</span></th>
+            <th onclick="sortTable('admin','activity')" title="Komentáře + korespondence celkem">Aktivita celkem <span class="sort-ind">↕</span></th>
+          </tr></thead>
+          <tbody id="tblAdminBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONSTANTS & STATE
+// ============================================================
+const MONTHS=['Leden','Únor','Březen','Duben','Květen','Červen','Červenec','Srpen','Září','Říjen','Listopad','Prosinec'];
+
+let rtData=[];
+let filteredRT=[];
+let adminAgg=[];
+let chartInstances={};
+let tblSort={admin:{col:'activity',dir:1}};
+let expandedRows={};
+let adminFilter='all';
+
+// ============================================================
+// CSV PARSER
+// ============================================================
+function detectEncoding(buf){const b=new Uint8Array(buf);if(b[0]===0xEF&&b[1]===0xBB&&b[2]===0xBF)return 'utf-8';return 'windows-1250';}
+function parseCSV(text){
+  const lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');const rows=[];
+  for(const line of lines){if(!line.trim())continue;const fields=[];let cur='',inQ=false;
+    for(let i=0;i<line.length;i++){const c=line[i];if(inQ){if(c==='"'&&line[i+1]==='"'){cur+='"';i++;}else if(c==='"')inQ=false;else cur+=c;}else{if(c==='"')inQ=true;else if(c===';'){fields.push(cur);cur='';}else cur+=c;}}
+    fields.push(cur);rows.push(fields.map(f=>f.trim()));}return rows;}
+function normalizeKey(s){return s.toLowerCase().replace(/[áàâä]/g,'a').replace(/[čç]/g,'c').replace(/[ď]/g,'d').replace(/[éèêë]/g,'e').replace(/[íìîï]/g,'i').replace(/[ňñ]/g,'n').replace(/[óôö]/g,'o').replace(/[š]/g,'s').replace(/[ř]/g,'r').replace(/[ť]/g,'t').replace(/[úùûůü]/g,'u').replace(/[ý]/g,'y').replace(/[ž]/g,'z').replace(/[\s_\-]/g,'');}
+function mapColumns(headers){
+  const map={};
+  headers.forEach((h,i)=>{const n=normalizeKey(h);
+    if(n.includes('hours')||n.includes('hodiny')||n.includes('odpracovano')){if(!map.hours)map.hours=i;}
+    if(n.includes('workdate')||n.includes('datumcas')||n.includes('datum')){if(!map.workdate)map.workdate=i;}
+    if(n.includes('login')||n==='admin'){if(!map.login)map.login=i;}
+    if(n.includes('limithodin')||n.includes('limithod')){if(!map.limit)map.limit=i;}
+    if(n.includes('mesiccena')||n.includes('monthlyprice')){if(!map.mesicCena)map.mesicCena=i;}
+    if(n.includes('mesicmena')||n==='cur'||n==='mena'){if(!map.mesicMena)map.mesicMena=i;}
+    if(n.includes('nadlimitcena')){if(!map.nadlimitCena)map.nadlimitCena=i;}
+    if(n.includes('nadlimitmena')){if(!map.nadlimitMena)map.nadlimitMena=i;}
+    if(n.includes('clientid')){if(!map.clientid)map.clientid=i;}
+    if(n.includes('clientname')){if(!map.clientname)map.clientname=i;}
+    if(n.includes('serviceid')){if(!map.serviceid)map.serviceid=i;}
+    if(n.includes('servicename')){if(!map.servicename)map.servicename=i;}
+    if(n.includes('ticketid')){if(!map.ticketid)map.ticketid=i;}
+    if(n.includes('clientnote')){if(!map.clientnote)map.clientnote=i;}
+    if(n.includes('note')&&!n.includes('client')){if(!map.note)map.note=i;}
+    if(n.includes('subject')){if(!map.subject)map.subject=i;}
+    if(n.includes('fronta')||n.includes('queue')){if(!map.fronta)map.fronta=i;}
+    if(n==='link'||n.includes('link')){if(!map.link)map.link=i;}
+    if(n==='cid'){if(!map.cid)map.cid=i;}
+    if(n==='sid'){if(!map.cidsid)map.cidsid=i;}
+    if(n.includes('stav')){if(!map.stav)map.stav=i;}
+    if(n==='jecomment'||n==='je_comment'||n.includes('jecomment')){if(!map.jeComment)map.jeComment=i;}
+    if(n==='jecorrespond'||n==='je_correspond'||n.includes('jecorrespond')){if(!map.jeCorrespond)map.jeCorrespond=i;}
+    if(n==='jeset'||n==='je_set'||n.includes('jeset')){if(!map.jeSet)map.jeSet=i;}
+    if(n==='jecreate'||n==='je_create'||n.includes('jecreate')){if(!map.jeCreate)map.jeCreate=i;}
+    if(n==='jestatus'||n==='je_status'||n.includes('jestatus')){if(!map.jeStatus)map.jeStatus=i;}
+  });return map;}
+function parseDate(s){if(!s)return null;s=s.trim();let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return new Date(+m[1],+m[2]-1,+m[3]);m=s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);if(m)return new Date(+m[3],+m[2]-1,+m[1]);return null;}
+function parseHours(s){if(!s)return 0;const n=parseFloat(s.replace(',','.'));return isNaN(n)?0:n;}
+function readCSVFile(file,type){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const enc=detectEncoding(e.target.result);
+      const text=new TextDecoder(enc).decode(e.target.result);
+      const rows=parseCSV(text);if(rows.length<2)return resolve([]);
+      const map=mapColumns(rows[0]);const records=[];
+      for(let i=1;i<rows.length;i++){const r=rows[i];if(!r.some(c=>c))continue;
+        const d=parseDate(r[map.workdate]||'');if(!d)continue;
+        if(type==='IS'){records.push({clientId:r[map.clientid]||'',clientName:r[map.clientname]||'',serviceId:r[map.serviceid]||'',serviceName:r[map.servicename]||'',ticketId:r[map.ticketid]||'',clientNote:r[map.clientnote]||'',note:r[map.note]||'',workDate:d,hours:parseHours(r[map.hours]),login:(r[map.login]||'').trim(),limit:parseHours(r[map.limit]),mesicCena:parseHours(r[map.mesicCena]),mesicMena:r[map.mesicMena]||'',nadlimitCena:parseHours(r[map.nadlimitCena]),nadlimitMena:r[map.nadlimitMena]||''});}
+        else{records.push({ticketId:r[map.ticketid]||'',subject:r[map.subject]||'',stav:r[map.stav]||'',fronta:r[map.fronta]||'',login:(r[map.login]||'').trim(),link:r[map.link]||'',clientId:r[map.cid]||'',serviceId:r[map.cidsid]||r[map.serviceid]||'',workDate:d,hours:parseHours(r[map.hours]),jeComment:parseInt(r[map.jeComment])||0,jeCorrespond:parseInt(r[map.jeCorrespond])||0,jeSet:parseInt(r[map.jeSet])||0,jeCreate:parseInt(r[map.jeCreate])||0,jeStatus:parseInt(r[map.jeStatus])||0});}}
+      resolve(records);};reader.onerror=reject;reader.readAsArrayBuffer(file);});}
+
+// ============================================================
+// FILE HANDLING
+// ============================================================
+async function loadFile(file){
+  if(!file)return;
+  const data=await readCSVFile(file,'RT');
+  rtData=data;
+  const el=document.getElementById('rtFileName');
+  el.innerHTML=`<span style="color:#10b981;font-weight:700">✓ ${file.name}</span> (${data.length} záznamů)`;
+  el.className='upload-status loaded-rt';
+  document.getElementById('dropRT').classList.add('loaded');
+  document.getElementById('btnShow').disabled=rtData.length===0;
+}
+function onDragOver(e,id){e.preventDefault();document.getElementById(id).classList.add('drag-over');}
+function onDragLeave(id){document.getElementById(id).classList.remove('drag-over');}
+function onDrop(e){e.preventDefault();document.getElementById('dropRT').classList.remove('drag-over');const file=e.dataTransfer.files[0];if(file)loadFile(file);}
+
+// ============================================================
+// SHOW / HIDE
+// ============================================================
+function showDashboard(){
+  document.getElementById('uploadScreen').classList.remove('visible');
+  document.getElementById('dashboard').style.display='block';
+  // Show RT filename chip in header
+  const c=document.getElementById('headerChips');c.innerHTML='';
+  const rtEl=document.getElementById('rtFileName');
+  if(rtData.length){
+    const fname=rtEl.textContent.split(' (')[0].replace('✓ ','').trim();
+    c.innerHTML=`<span class="hdr-chip hdr-chip-rt">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/></svg>
+      ${esc(fname)}
+    </span>`;}
+  buildFilters();applyFilters();}
+function backToUpload(){document.getElementById('dashboard').style.display='none';document.getElementById('uploadScreen').classList.add('visible');}
+
+// ============================================================
+// FILTERS
+// ============================================================
+function buildFilters(){
+  const allDates=rtData.map(r=>r.workDate).filter(Boolean);
+  const months=[...new Set(allDates.map(d=>d.getMonth()))].sort((a,b)=>a-b);
+  const years=[...new Set(allDates.map(d=>d.getFullYear()))].sort((a,b)=>a-b);
+  const admins=[...new Set(rtData.map(r=>r.login).filter(Boolean))].sort();
+  fillSelect('fMonth',[{v:'',l:'Vše'},...months.map(m=>({v:m,l:MONTHS[m]}))]);
+  fillSelect('fYear',[{v:'',l:'Vše'},...years.map(y=>({v:y,l:y}))]);
+  buildAdminCheckList(admins);
+  if(months.length===1)document.getElementById('fMonth').value=months[0];
+  if(years.length===1)document.getElementById('fYear').value=years[0];}
+
+function fillSelect(id,opts){document.getElementById(id).innerHTML=opts.map(o=>`<option value="${o.v}">${o.l}</option>`).join('');}
+
+// ── Admin multi-select dropdown ──────────────────────────────
+function buildAdminCheckList(admins){
+  const list=document.getElementById('adminCheckList');
+  list.innerHTML=admins.map(a=>`
+    <label style="display:flex;align-items:center;gap:8px;padding:5px 12px;cursor:pointer;font-size:12px;white-space:nowrap" onmouseenter="this.style.background='#f3f4f6'" onmouseleave="this.style.background=''">
+      <input type="checkbox" class="admin-chk" value="${esc(a)}" checked onchange="onAdminChkChange()"> ${esc(a)}
+    </label>`).join('');}
+
+function toggleAdminDropdown(){
+  const dd=document.getElementById('adminDropdown');
+  const isOpen=dd.style.display!=='none';
+  dd.style.display=isOpen?'none':'block';
+  if(!isOpen){
+    // Zavři kliknutím mimo
+    setTimeout(()=>document.addEventListener('click',closeAdminDropdownOutside,{once:true}),0);}}
+
+function closeAdminDropdownOutside(e){
+  const dd=document.getElementById('adminDropdown');
+  const btn=document.getElementById('adminDropdownBtn');
+  if(!dd.contains(e.target)&&!btn.contains(e.target))dd.style.display='none';}
+
+function onAdminAllChange(cb){
+  document.querySelectorAll('.admin-chk').forEach(c=>c.checked=cb.checked);
+  updateAdminDropdownLabel();applyFilters();}
+
+function onAdminChkChange(){
+  const all=document.querySelectorAll('.admin-chk');
+  const checked=[...all].filter(c=>c.checked);
+  document.getElementById('fAdminAll').checked=checked.length===all.length;
+  updateAdminDropdownLabel();applyFilters();}
+
+function updateAdminDropdownLabel(){
+  const all=document.querySelectorAll('.admin-chk');
+  const checked=[...all].filter(c=>c.checked);
+  const btn=document.getElementById('adminDropdownBtn');
+  const span=btn.querySelector('span');
+  if(checked.length===all.length||checked.length===0){btn.childNodes[0].textContent='Všichni ';}
+  else if(checked.length===1){btn.childNodes[0].textContent=checked[0].value+' ';}
+  else{btn.childNodes[0].textContent=`${checked.length} adminů `;}
+  // Ponech šipku span
+  btn.appendChild(span);}
+
+function getSelectedAdmins(){
+  const checked=[...document.querySelectorAll('.admin-chk:checked')].map(c=>c.value);
+  const all=document.querySelectorAll('.admin-chk').length;
+  return checked.length===all?null:new Set(checked);}// null = vše
+
+function getFilters(){return{month:document.getElementById('fMonth').value,year:document.getElementById('fYear').value,admins:getSelectedAdmins()};}
+
+// Velikonoční pondělí pro daný rok (Gaussův algoritmus)
+function easterMonday(year){
+  const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4;
+  const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3);
+  const h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4;
+  const l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451);
+  const month=Math.floor((h+l-7*m+114)/31)-1;
+  const day=((h+l-7*m+114)%31)+1;
+  const em=new Date(year,month,day);em.setDate(em.getDate()+1);return em;}
+
+function czechHolidays(year){
+  const h=new Set();
+  const a=(y,m,d)=>h.add(`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+  a(year,1,1);a(year,5,1);a(year,5,8);a(year,7,5);a(year,7,6);
+  a(year,9,28);a(year,10,28);a(year,11,17);
+  a(year,12,24);a(year,12,25);a(year,12,26);
+  const em=easterMonday(year);
+  a(em.getFullYear(),em.getMonth()+1,em.getDate());
+  return h;}
+
+function countWorkingDays(year,month,toDay){
+  const holidays=czechHolidays(year);let count=0;
+  for(let d=1;d<=toDay;d++){
+    const dow=new Date(year,month,d).getDay();
+    if(dow===0||dow===6)continue;
+    const key=`${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    if(!holidays.has(key))count++;}
+  return count;}
+
+function getElapsedFondInfo(){
+  const srcDates=filteredRT.map(r=>r.workDate).filter(Boolean);
+  if(!srcDates.length)return{elapsedFond:160,elapsedWD:null,totalWD:null,lastDate:null};
+  const lastDate=srcDates.reduce((mx,d)=>d>mx?d:mx);
+  const year=lastDate.getFullYear(),month=lastDate.getMonth(),lastDay=lastDate.getDate();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const totalWD=countWorkingDays(year,month,daysInMonth);
+  const elapsedWD=countWorkingDays(year,month,lastDay);
+  const elapsedFond=Math.max(0.01,elapsedWD*8);
+  return{elapsedFond,elapsedWD,totalWD,lastDate};}
+
+function getElapsedFond(){return getElapsedFondInfo().elapsedFond;}
+
+function applyFilters(){
+  const f=getFilters();
+  filteredRT=rtData.filter(r=>{
+    if(f.month!==''&&r.workDate.getMonth()!=f.month)return false;
+    if(f.year!==''&&r.workDate.getFullYear()!=f.year)return false;
+    if(f.admins&&!f.admins.has(r.login))return false;
+    return true;});
+  expandedRows={};
+  const activeDays=new Set(filteredRT.map(r=>fmt_d(r.workDate))).size;
+  document.getElementById('filterCount').innerHTML=`<span class="rt-cnt">${filteredRT.length}</span> RT záznamů · ${activeDays} dní s aktivitou`;
+  aggregate();
+  const ei=getElapsedFondInfo();
+  const lrdEl=document.getElementById('lastRtDate');
+  if(ei.lastDate){lrdEl.style.display='';document.getElementById('lastRtDateVal').textContent=fmt_d(ei.lastDate).split('-').reverse().join('.')+` (${ei.elapsedWD} prac. dní, ${fmtH(ei.elapsedFond)})`;}
+  else{lrdEl.style.display='none';}
+  renderAll();}
+function resetFilters(){
+  ['fMonth','fYear'].forEach(id=>document.getElementById(id).value='');
+  document.querySelectorAll('.admin-chk').forEach(c=>c.checked=true);
+  document.getElementById('fAdminAll').checked=true;
+  updateAdminDropdownLabel();
+  applyFilters();}
+
+// ============================================================
+// AGGREGATION
+// ============================================================
+function aggregate(){
+  const elapsedFond=getElapsedFond();
+  const adminMap={};
+  filteredRT.forEach(r=>{
+    if(!r.login)return;
+    if(!adminMap[r.login])adminMap[r.login]={login:r.login,rtH:0,comments:0,corresponds:0,tickets:{}};
+    adminMap[r.login].rtH+=r.hours;
+    adminMap[r.login].comments+=r.jeComment||0;
+    adminMap[r.login].corresponds+=r.jeCorrespond||0;
+    const hasActivity=r.hours>0||(r.jeComment||0)>0||(r.jeCorrespond||0)>0;
+    if(!r.ticketId&&!hasActivity)return;
+    const tid=r.ticketId||('_no_'+Math.random());
+    if(!adminMap[r.login].tickets[tid])adminMap[r.login].tickets[tid]={ticketId:r.ticketId,subject:r.subject||'',stav:r.stav||'',clientId:r.clientId||'',serviceId:r.serviceId||'',rtH:0,comments:0,corresponds:0,dates:new Set(),hourDates:new Set()};
+    const tk=adminMap[r.login].tickets[tid];
+    tk.rtH+=r.hours;tk.comments+=(r.jeComment||0);tk.corresponds+=(r.jeCorrespond||0);
+    tk.stav=r.stav||tk.stav||'';
+    if(r.clientId&&!tk.clientId)tk.clientId=r.clientId;
+    if(r.serviceId&&!tk.serviceId)tk.serviceId=r.serviceId;
+    if(r.hours>0||(r.jeComment||0)>0||(r.jeCorrespond||0)>0)tk.dates.add(fmt_d(r.workDate));
+    if(r.hours>0)tk.hourDates.add(fmt_d(r.workDate));});
+  adminAgg=Object.values(adminMap).map(a=>({...a,tickets:Object.values(a.tickets),util:elapsedFond>0?+(a.rtH/elapsedFond*100).toFixed(2):null,activity:(a.comments||0)+(a.corresponds||0)}));}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function fmt_d(d){return d.toISOString().slice(0,10);}
+function fmtH(v){return(+v).toFixed(2).replace('.',',')+' h';}
+function fmtM(v,cur){if(!v&&v!==0)return '—';return(+v).toLocaleString('cs-CZ',{minimumFractionDigits:2,maximumFractionDigits:2})+(cur?' '+cur:'');}
+function rtLink(id){return`https://rt.i.masterinter.net/Ticket/Display.html?id=${id}`;}
+function clientLink(id){return`https://is.i.masterinter.net/is/client/viewClient.do?clientId=${id}`;}
+function serviceLink(id){return`https://is.i.masterinter.net/is/service/updateService.do?serviceId=${id}`;}
+function clink(href,text){return`<a href="${href}" target="_blank" class="client-link">${text}</a>`;}
+function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):'';}
+function escQ(s){return s.replace(/'/g,"\\'");}
+function fmtDiff(d){if(Math.abs(d)<0.005)return`<span class="h-zero">${fmtH(0)}</span>`;return d>0?`<span style="color:var(--c-blue);font-weight:700">+${fmtH(d)}</span>`:`<span style="color:var(--c-orange);font-weight:700">${fmtH(d)}</span>`;}
+
+// ============================================================
+// RENDER ALL
+// ============================================================
+function renderAll(){renderAdminKPI();renderAdminCharts();renderAdminHeatmap();renderAdminTable();}
+
+// ============================================================
+// KPI CARDS
+// ============================================================
+function kpiCard(label,value,sub,cls='kpi-neutral'){return`<div class="kpi-card ${cls}"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;}
+
+function renderAdminKPI(){
+  const ei=getElapsedFondInfo();const elapsedFond=ei.elapsedFond;
+  const totalRT=filteredRT.reduce((s,r)=>s+r.hours,0);
+  const avgUtil=adminAgg.length>0?(adminAgg.reduce((s,a)=>s+(a.util||0),0)/adminAgg.length):0;
+  const belowTargetCount=adminAgg.filter(a=>a.util!==null&&a.util<70).length;
+  const activeDays=new Set(filteredRT.map(r=>fmt_d(r.workDate))).size;
+  const utilSub=ei.elapsedWD!==null
+    ?`${ei.elapsedWD} prac. dní × 8 h = ${fmtH(elapsedFond)}`
+    :'utilizace za období';
+  document.getElementById('kpiAdmins').innerHTML=
+    kpiCard('RT hodin celkem',fmtH(totalRT),adminAgg.length+' administrátorů','kpi-rt')+
+    kpiCard('Průměrná utilizace',avgUtil.toFixed(2).replace('.',',')+' %',utilSub,avgUtil>=70?'kpi-ok':avgUtil>=50?'kpi-warn':'kpi-danger')+
+    kpiCard('Admini pod cílem',belowTargetCount,'utilizace < 70 %',belowTargetCount>0?'kpi-danger':'kpi-ok')+
+    kpiCard('Záznamy RT',filteredRT.length,activeDays+' dní s aktivitou','kpi-neutral');}
+
+// ============================================================
+// CHARTS
+// ============================================================
+function renderAdminCharts(){
+  const sorted=[...adminAgg].sort((a,b)=>b.rtH-a.rtH);
+  const barH=Math.max(300,sorted.length*26+40);
+  const scroll=document.getElementById('adminBarScroll');
+  scroll.innerHTML=`<canvas id="chartAdminBar"></canvas>`;
+  const ctx1=document.getElementById('chartAdminBar');
+  ctx1.width=scroll.clientWidth||400;ctx1.height=barH;
+  destroyChart('adminBar');
+  const ei=getElapsedFondInfo();
+  const target70=ei.elapsedFond*0.7;
+  const n=sorted.length;
+  const colors=sorted.map(a=>a.util===null?'#93c5fd':a.util>=70?'#10b981':a.util>=50?'#f59e0b':'#ef4444');
+  chartInstances.adminBar=new Chart(ctx1,{type:'bar',data:{labels:sorted.map(a=>a.login),datasets:[
+    {label:'RT hodin',data:sorted.map(a=>a.rtH),backgroundColor:colors,borderRadius:3},
+    {label:'Cíl 70 %',data:Array(n).fill(target70),type:'line',borderColor:'#f59e0b',borderDash:[5,3],borderWidth:1.5,pointRadius:0,fill:false,order:0}
+  ]},options:{indexAxis:'y',responsive:false,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},scales:{y:{ticks:{font:{size:9,weight:'600'}}},x:{beginAtZero:true,ticks:{font:{size:10}}}}}});
+
+  const dayMap={};
+  filteredRT.forEach(r=>{const k=fmt_d(r.workDate);dayMap[k]=(dayMap[k]||0)+r.hours;});
+  const days=Object.keys(dayMap).sort();
+  destroyChart('timeline');
+  chartInstances.timeline=new Chart(document.getElementById('chartTimeline'),{type:'line',data:{labels:days,datasets:[{label:'RT hodin/den',data:days.map(d=>dayMap[d]),borderColor:'#10b981',backgroundColor:'#10b98122',fill:true,tension:.35,pointRadius:2,borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:11},boxWidth:12}}},scales:{x:{ticks:{maxTicksLimit:12,font:{size:10}}},y:{beginAtZero:true,ticks:{font:{size:10}}}}}});}
+
+function renderAdminHeatmap(){
+  const adminDayMap={};
+  filteredRT.forEach(r=>{if(!r.login)return;const day=r.workDate.getDate();if(!adminDayMap[r.login])adminDayMap[r.login]={};adminDayMap[r.login][day]=(adminDayMap[r.login][day]||0)+r.hours;});
+  const admins=[...adminAgg].sort((a,b)=>b.rtH-a.rtH).map(a=>a.login);
+  if(!admins.length){document.getElementById('heatmapCard').style.display='none';return;}
+  document.getElementById('heatmapCard').style.display='';
+  // Měsíc z posledního záznamu; všechny dny měsíce včetně budoucích
+  const ei=getElapsedFondInfo();
+  const refDate=ei.lastDate||(filteredRT.find(r=>r.workDate)?.workDate)||new Date();
+  const year=refDate.getFullYear(),month=refDate.getMonth();
+  const lastDay=ei.lastDate?ei.lastDate.getDate():0;
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const allDays=Array.from({length:daysInMonth},(_,i)=>i+1);
+  const holidays=czechHolidays(year);
+  function isWeekendOrHoliday(day){
+    const dow=new Date(year,month,day).getDay();if(dow===0||dow===6)return true;
+    return holidays.has(`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`);}
+  function hmClass(h,day){
+    const wknd=isWeekendOrHoliday(day);const future=day>lastDay;
+    if(wknd)return 'hmap-weekend'+(future?'-future':'');
+    if(future)return 'hmap-future';
+    if(!h||h===0)return 'hmap-0';if(h<2)return 'hmap-1';if(h<5)return 'hmap-2';if(h<8)return 'hmap-3';if(h<12)return 'hmap-4';return 'hmap-5';}
+  let html=`<table class="hmap-tbl"><thead><tr><th class="hmap-label-col"></th>`;
+  allDays.forEach(d=>{
+    const wknd=isWeekendOrHoliday(d);const future=d>lastDay;
+    const cls=wknd&&future?'hmap-th-weekend hmap-th-future':wknd?'hmap-th-weekend':future?'hmap-th-future':'';
+    html+=`<th${cls?' class="'+cls+'"':''}>${d}</th>`;});
+  html+=`</tr></thead><tbody>`;
+  admins.forEach(a=>{html+=`<tr><td class="hmap-label hmap-label-col">${esc(a)}</td>`;
+    allDays.forEach(d=>{
+      const h=adminDayMap[a]?adminDayMap[a][d]||0:0;const cls=hmClass(h,d);const future=d>lastDay;
+      html+=`<td><div class="hmap-cell ${cls}" title="${a} ${d}.${month+1}.: ${h?fmtH(h):(future?'zatím nenastalo':isWeekendOrHoliday(d)?'víkend/svátek':'0 h')}">${h>0&&!future?Math.round(h):''}</div></td>`;});
+    html+=`</tr>`;});
+  html+=`</tbody></table>`;
+  document.getElementById('heatmapBody').innerHTML=html;}
+
+// ============================================================
+// ADMIN TABLE
+// ============================================================
+function setAdminFilter(f){
+  adminFilter=f;
+  ['afAll','afBelow','afCritical'].forEach(id=>{const el=document.getElementById(id);if(el)el.classList.remove('active');});
+  const map={all:'afAll',below:'afBelow',critical:'afCritical'};
+  const el=document.getElementById(map[f]);if(el)el.classList.add('active');
+  renderAdminTable();}
+
+function calcProjection(a){
+  const ei=getElapsedFondInfo();
+  if(!ei.lastDate||!ei.elapsedWD||ei.elapsedWD===0||a.rtH===0)return null;
+  const year=ei.lastDate.getFullYear(),month=ei.lastDate.getMonth();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const totalWD=countWorkingDays(year,month,daysInMonth);
+  const remainingWD=Math.max(0,totalWD-ei.elapsedWD);
+  const projectedRT=a.rtH+(a.rtH/ei.elapsedWD)*remainingWD;
+  const projectedUtil=projectedRT/(totalWD*8)*100;
+  return projectedUtil;}
+
+function utilColor(util){
+  if(util===null)return null;
+  if(util>=70)return'#10b981';
+  if(util>=50)return'#f59e0b';
+  if(util>=10)return'#ef4444';
+  return'#b91c1c';}
+
+function renderUtil(util){
+  if(util===null)return'<span class="h-zero">—</span>';
+  const col=utilColor(util);
+  const pctLabel=util.toFixed(2).replace('.',',')+' %';
+  return`<div class="util-bar"><div class="util-fill"><div class="util-inner" style="width:${Math.min(util,100)}%;background:${col}"></div></div><span class="util-pct" style="color:${col};font-weight:700">${pctLabel}</span></div>`;}
+
+function stavChip(stav){
+  if(!stav)return'';
+  const s=stav.toLowerCase().trim();
+  let bg,color;
+  if(['open','new','stalled'].includes(s)){bg='#fee2e2';color='#991b1b';}
+  else if(['resolved','closed'].includes(s)){bg='#d1fae5';color='#065f46';}
+  else{bg='#f3f4f6';color='#6b7280';}
+  return`<span style="background:${bg};color:${color};border-radius:8px;padding:1px 7px;font-size:10px;font-weight:700;white-space:nowrap">${esc(stav)}</span>`;}
+
+function buildSparkline(dailyHours){
+  const entries=Object.entries(dailyHours||{}).sort(([a],[b])=>a<b?-1:1);
+  if(entries.length<2)return'<span style="color:#9ca3af;font-size:10px">—</span>';
+  const vals=entries.map(([,v])=>v);const max=Math.max(...vals,0.01);
+  const w=60,h=20;
+  const pts=vals.map((v,i)=>{const x=(i/(vals.length-1))*w;const y=h-(v/max)*h;return`${x.toFixed(1)},${y.toFixed(1)}`;}).join(' ');
+  const trend=vals[vals.length-1]>vals[0]?'#ef4444':vals[vals.length-1]<vals[0]?'#10b981':'#0A6DFE';
+  return`<svg class="sparkline-cell" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="${trend}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;}
+
+function renderAdminTable(){
+  const q=(document.getElementById('searchAdmin').value||'').toLowerCase();
+  let data=adminAgg.filter(a=>{
+    if(q&&!a.login.toLowerCase().includes(q))return false;
+    if(adminFilter==='below'&&!(a.util!==null&&a.util<70))return false;
+    if(adminFilter==='critical'&&!(a.util!==null&&a.util<10))return false;
+    return true;});
+  const s=tblSort.admin;
+  data.sort((a,b)=>{let va=a[s.col],vb=b[s.col];if(typeof va==='string'){va=va.toLowerCase();vb=vb.toLowerCase();}return va<vb?s.dir:va>vb?-s.dir:0;});
+  updateSortHeaders('tblAdmin',s);
+  const cnt=document.getElementById('tblAdminCount');if(cnt)cnt.textContent=data.length+' administrátorů';
+  const tbody=document.getElementById('tblAdminBody');tbody.innerHTML='';
+  // Event delegation — jeden listener na celé tbody
+  tbody.onclick=function(e){
+    const tr=e.target.closest('tr.main-row');if(!tr)return;
+    const login=tr.dataset.login;if(!login)return;
+    const admin=adminAgg.find(a=>a.login===login);if(!admin)return;
+    const rowId=tr.dataset.rowId;
+    try{toggleExpand(rowId,buildAdminTickets(admin),tbody,tr);}
+    catch(err){console.error('expand:',err);}};
+
+  data.forEach(a=>{
+    const rowId='a_'+a.login;
+    const utilHtml=renderUtil(a.util);
+    const util=a.util||0;
+    const rowBg=util>=70?'rgba(16,185,129,0.05)':util>=50?'rgba(245,158,11,0.05)':util>=10?'rgba(239,68,68,0.05)':'rgba(185,28,28,0.07)';
+    const commHtml=a.comments>0?`<span style="font-weight:700;color:#6b7280">${a.comments}</span>`:'<span style="color:#d1d5db">—</span>';
+    const corrHtml=a.corresponds>0?`<span style="font-weight:700;color:#0A6DFE">${a.corresponds}</span>`:'<span style="color:#d1d5db">—</span>';
+    const actTotal=a.activity||0;
+    const actHtml=actTotal>0?`<span style="font-weight:700;color:#111827">${actTotal}</span>`:'<span style="color:#d1d5db">—</span>';
+    const tr=document.createElement('tr');
+    tr.className='main-row';
+    tr.dataset.rowId=rowId;
+    tr.dataset.login=a.login;
+    tr.style.background=rowBg;
+    if(expandedRows[rowId])tr.classList.add('expanded');
+    tr.innerHTML=
+      '<td><div style="display:flex;align-items:center;gap:8px"><span class="row-arrow">&#9658;</span><strong>'+esc(a.login)+'</strong></div></td>'
+      +'<td class="h-rt">'+fmtH(a.rtH)+'</td>'
+      +'<td>'+utilHtml+'</td>'
+      +'<td style="text-align:center">'+commHtml+'</td>'
+      +'<td style="text-align:center">'+corrHtml+'</td>'
+      +'<td style="text-align:center">'+actHtml+'</td>';
+    tbody.appendChild(tr);
+    if(expandedRows[rowId]){
+      try{insertExpandRow(rowId,buildAdminTickets(a),tbody,tr);}
+      catch(err){console.error('expand-init:',err);}}});}
+
+function buildAdminTickets(admin){
+  const tks=admin.tickets
+    .filter(t=>t.rtH>0||t.comments>0||t.corresponds>0)
+    .sort((a,b)=>(b.rtH+b.comments+b.corresponds)-(a.rtH+a.comments+a.corresponds));
+  if(!tks.length)return'<em style="color:#9ca3af;font-size:12px">Žádné záznamy</em>';
+
+  // Souhrn stavů
+  const stavCounts={};tks.forEach(t=>{if(t.stav){const s=t.stav.toLowerCase().trim();stavCounts[s]=(stavCounts[s]||0)+1;}});
+  const stavChips=Object.entries(stavCounts).map(([s,c])=>stavChip(s)+`<span style="font-size:10px;color:#6b7280;margin-left:3px;margin-right:6px">${c}</span>`).join('');
+  const totalComments=tks.reduce((s,t)=>s+(t.comments||0),0);
+  const totalCorresponds=tks.reduce((s,t)=>s+(t.corresponds||0),0);
+  const commSummary=totalComments>0?`<span style="background:#f3f4f6;color:#6b7280;border-radius:8px;padding:2px 8px;font-size:10px;font-weight:700">💬 ${totalComments} komentářů</span>`:'';
+  const corrSummary=totalCorresponds>0?`<span style="background:#eff6ff;color:#1d4ed8;border-radius:8px;padding:2px 8px;font-size:10px;font-weight:700">✉ ${totalCorresponds} zpráv zákazníkovi</span>`:'';
+  const summary=`<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="font-size:11px;font-weight:700;color:var(--c-muted)">Tickety: ${tks.length}</span>
+    ${commSummary}${corrSummary}
+    ${stavChips?`<span style="color:var(--c-border)">|</span>${stavChips}`:''}
+  </div>`;
+
+  const rows=tks.map(t=>{
+    const tid=t.ticketId&&t.ticketId!==''&&t.ticketId!=='NULL'?t.ticketId:null;
+    const noHours=t.rtH===0;
+    const commCell=t.comments>0?`<span style="font-weight:700;color:#6b7280">${t.comments}</span>`:'<span style="color:#e5e7eb">—</span>';
+    const corrCell=t.corresponds>0?`<span style="font-weight:700;color:#0A6DFE">${t.corresponds}</span>`:'<span style="color:#e5e7eb">—</span>';
+    // Datum — pouze dny kde jsou hodiny; pokud není, zobraz alespoň datum aktivity
+    const datesWithHours=[...(t.hourDates||new Set())].sort();
+    const datesDisplay=datesWithHours.length>0
+      ?datesWithHours.map(d=>{const p=d.split('-');return p[2]+'.'+p[1]+';'}).join(' ')
+      :'<span style="color:#9ca3af">—</span>';
+    const cidCell=t.clientId?clink(clientLink(t.clientId),`<span style="font-size:10px;color:#6b7280">${t.clientId}</span>`):'<span style="color:#e5e7eb">—</span>';
+    const sidCell=t.serviceId?clink(serviceLink(t.serviceId),`<span style="font-size:10px;color:#6b7280">${t.serviceId}</span>`):'<span style="color:#e5e7eb">—</span>';
+    return`<tr style="${noHours?'background:#fafafa;':''}" title="${noHours?'Bez vykázaného času — pouze komentář / korespondence':''}">
+      <td>${tid?clink(rtLink(tid),'#'+tid):'<span style="color:#9ca3af">(bez ticketu)</span>'}</td>
+      <td style="max-width:240px;word-break:break-word;color:#6b7280">${esc(t.subject)||'—'}</td>
+      <td>${cidCell}</td>
+      <td>${sidCell}</td>
+      <td class="${noHours?'h-zero':'h-rt'}">${fmtH(t.rtH)}</td>
+      <td style="text-align:center">${commCell}</td>
+      <td style="text-align:center">${corrCell}</td>
+      <td>${t.stav?stavChip(t.stav):''}</td>
+      <td style="color:#6b7280;font-size:11px;white-space:nowrap">${datesDisplay}</td>
+    </tr>`;}).join('');
+  return summary+`<table class="tbl"><thead><tr>
+    <th>Ticket ID</th><th>Předmět</th><th>CID</th><th>SID</th><th>RT hodin</th>
+    <th title="Interní komentáře">💬</th><th title="Zprávy zákazníkovi">✉</th>
+    <th>Stav</th><th>Datum vykázání</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;}
+
+// ============================================================
+// EXPAND ROWS
+// ============================================================
+function toggleExpand(rowId,html,tbody,refTr){
+  if(expandedRows[rowId]){delete expandedRows[rowId];refTr.classList.remove('expanded');tbody.querySelector(`tr[data-expand="${rowId}"]`)?.remove();}
+  else{expandedRows[rowId]=true;refTr.classList.add('expanded');insertExpandRow(rowId,html,tbody,refTr);}}
+function insertExpandRow(rowId,html,tbody,refTr){
+  const et=document.createElement('tr');et.className='expand-row';et.dataset.expand=rowId;
+  et.innerHTML=`<td colspan="${refTr.cells.length}"><div class="expand-inner">${html}</div></td>`;refTr.after(et);}
+
+// ============================================================
+// SORT
+// ============================================================
+function sortTable(tblKey,col){const s=tblSort[tblKey];if(s.col===col)s.dir*=-1;else{s.col=col;s.dir=-1;}renderAdminTable();}
+function updateSortHeaders(tblId,s){
+  const tbl=document.getElementById(tblId);if(!tbl)return;
+  tbl.querySelectorAll('thead th').forEach(th=>{th.classList.remove('sort-active');const fn=th.getAttribute('onclick')||'';const m=fn.match(/'([^']+)'\)/);const ind=th.querySelector('.sort-ind');
+    if(m&&m[1]===s.col){th.classList.add('sort-active');if(ind)ind.textContent=s.dir>0?'↑':'↓';}else if(ind)ind.textContent='↕';});}
+
+// ============================================================
+// EXPORT CSV
+// ============================================================
+function exportCSV(rows,headers,filename){
+  const bom='﻿';
+  const csv=[headers.join(';'),...rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(';'))].join('\n');
+  const blob=new Blob([bom+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+
+function exportAdminCSV(){
+  const rows=[...adminAgg].sort((a,b)=>b.rtH-a.rtH).map(a=>[
+    a.login,a.rtH.toFixed(2),a.util!==null?a.util+'%':'—',
+    (a.comments||0),(a.corresponds||0),(a.activity||0)]);
+  exportCSV(rows,['Administrátor','RT hodin','Utilizace','Komentáře','Korespondence','Aktivita celkem'],'admini_odpracovanost_rt.csv');}
+
+// ============================================================
+// UTILS
+// ============================================================
+function destroyChart(key){if(chartInstances[key]){chartInstances[key].destroy();delete chartInstances[key];}}
+</script>
+</body>
+</html>
