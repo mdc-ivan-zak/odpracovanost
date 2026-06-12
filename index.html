@@ -403,6 +403,19 @@ function onDragOver(e,id){e.preventDefault();document.getElementById(id).classLi
 function onDragLeave(id){document.getElementById(id).classList.remove('drag-over');}
 function onDrop(e){e.preventDefault();document.getElementById('dropRT').classList.remove('drag-over');const file=e.dataTransfer.files[0];if(file)loadFile(file);}
 
+// Auto-load RT_supportWork.csv ze stejné složky (funguje na GitHub Pages)
+(async function(){
+  if(window.location.protocol==='file:')return; // lokální otevření — přeskočit
+  try{
+    const res=await fetch('./RT_supportWork.csv',{cache:'no-store'});
+    if(!res.ok)return;
+    const blob=await res.blob();
+    const file=new File([blob],'RT_supportWork.csv',{type:'text/csv'});
+    await loadFile(file);
+    showDashboard();
+  }catch(e){/* soubor není k dispozici — zobrazí se upload screen */}
+})();
+
 // ============================================================
 // SHOW / HIDE
 // ============================================================
